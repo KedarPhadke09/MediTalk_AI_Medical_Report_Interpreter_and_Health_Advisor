@@ -116,6 +116,16 @@ export const REFERENCE_RANGES: Record<string, ReferenceRange> = {
     specialist: 'Hematologist',
     criticalLowMultiplier: 0.61, // < 8 g/dL
   },
+  'Platelets': {
+    test: 'Platelets',
+    lower: 150000,
+    upper: 450000,
+    unit: '/µL',
+    category: 'cbc',
+    specialist: 'Hematologist',
+    criticalLowMultiplier: 0.33, // < 50,000
+    criticalHighMultiplier: 1.8,
+  },
   'WBC': {
     test: 'WBC',
     lower: 4000,
@@ -126,15 +136,53 @@ export const REFERENCE_RANGES: Record<string, ReferenceRange> = {
     criticalLowMultiplier: 0.5,
     criticalHighMultiplier: 3.0,
   },
-  'Platelets': {
-    test: 'Platelets',
-    lower: 150000,
-    upper: 450000,
-    unit: '/µL',
+  'RBC': {
+    test: 'Total RBC count',
+    lower: 4.5,
+    upper: 5.5,
+    unit: 'mill/cumm',
     category: 'cbc',
     specialist: 'Hematologist',
-    criticalLowMultiplier: 0.33, // < 50,000
-    criticalHighMultiplier: 1.8,
+  },
+  'PCV': {
+    test: 'Packed Cell Volume (PCV)',
+    lower: 40.0,
+    upper: 50.0,
+    unit: '%',
+    category: 'cbc',
+    specialist: 'Hematologist',
+  },
+  'MCV': {
+    test: 'Mean Corpuscular Volume (MCV)',
+    lower: 83.0,
+    upper: 101.0,
+    unit: 'fL',
+    category: 'cbc',
+    specialist: 'Hematologist',
+  },
+  'MCH': {
+    test: 'MCH',
+    lower: 27.0,
+    upper: 32.0,
+    unit: 'pg',
+    category: 'cbc',
+    specialist: 'Hematologist',
+  },
+  'MCHC': {
+    test: 'MCHC',
+    lower: 32.5,
+    upper: 34.5,
+    unit: 'g/dL',
+    category: 'cbc',
+    specialist: 'Hematologist',
+  },
+  'RDW': {
+    test: 'RDW',
+    lower: 11.6,
+    upper: 14.0,
+    unit: '%',
+    category: 'cbc',
+    specialist: 'Hematologist',
   },
 
   // Renal Function

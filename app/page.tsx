@@ -12,6 +12,7 @@ import { Patient, Report, Recommendation } from '@/lib/supabase';
 import { FileText, Stethoscope } from 'lucide-react';
 
 export default function Home() {
+  const [patientsList, setPatientsList] = useState<Patient[]>(DEMO_PATIENTS);
   const [currentPatient, setCurrentPatient] = useState<Patient>(DEMO_PATIENTS[0]);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
 
@@ -21,7 +22,7 @@ export default function Home() {
   const [selectedTestForTrend, setSelectedTestForTrend] = useState<string>('HbA1c');
 
   // Recommendations state
-  const [recommendations] = useState<Recommendation[]>([
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([
     {
       id: 'rec-1',
       patient_id: currentPatient.id,
@@ -55,10 +56,69 @@ export default function Home() {
   };
 
   // Handle newly uploaded or preset report
-  const handleReportLoaded = (newReport: Report) => {
+  const handleReportLoaded = (newReport: Report, newPatient?: Patient) => {
+    if (newPatient && newPatient.name) {
+      setPatientsList((prev) => {
+        const exists = prev.find(
+          (p) => p.name.toLowerCase() === newPatient.name.toLowerCase()
+        );
+        if (exists) {
+          return prev;
+        }
+        return [newPatient, ...prev];
+      });
+      setCurrentPatient(newPatient);
+    }
+
     setActiveReport(newReport);
-    if (newReport.values && newReport.values.length > 0) {
+
+    // Pick first abnormal test or first test in report for the trend view
+    const firstAbnormal = newReport.flags.find((f) => f.status !== 'normal');
+    if (firstAbnormal) {
+      setSelectedTestForTrend(firstAbnormal.test);
+    } else if (newReport.values && newReport.values.length > 0) {
       setSelectedTestForTrend(newReport.values[0].test);
+    }
+
+    // Generate clinical recommendations tailored to the uploaded report metrics
+    const abnormalList = newReport.flags.filter((f) => f.status !== 'normal');
+    if (abnormalList.length > 0) {
+      const generatedRecs: Recommendation[] = abnormalList.slice(0, 3).map((flag, idx) => {
+        const testObj = newReport.values.find((v) => v.test === flag.test);
+        const valStr = testObj ? `${testObj.value} ${testObj.unit}` : '';
+        const isAnemia =
+          flag.test.toLowerCase().includes('hemo') ||
+          flag.test.toLowerCase().includes('rbc') ||
+          flag.test.toLowerCase().includes('pcv');
+        const isPlatelet = flag.test.toLowerCase().includes('platelet');
+
+        let specialist = 'General Physician';
+        let adviceText = `${flag.test} is recorded at ${valStr} (${flag.status.toUpperCase()}). Clinical assessment advised.`;
+
+        if (isPlatelet) {
+          specialist = 'Hematologist';
+          adviceText = `Platelet count of ${valStr} is below safety baseline. Consult a hematologist to review etiology and avoid medications with bleeding risk.`;
+        } else if (isAnemia) {
+          specialist = 'Hematologist / Physician';
+          adviceText = `Hemoglobin is low at ${valStr}. Further evaluation for iron deficiency or nutritional anemia recommended.`;
+        } else if (flag.test.toLowerCase().includes('glucose') || flag.test.toLowerCase().includes('hba1c')) {
+          specialist = 'Endocrinologist';
+          adviceText = `Elevated glycemic reading (${valStr}). Adopt ADA dietary guidelines and schedule HbA1c review.`;
+        } else if (flag.test.toLowerCase().includes('ldl') || flag.test.toLowerCase().includes('chol')) {
+          specialist = 'Cardiologist';
+          adviceText = `Elevated lipid fractions (${valStr}). Implement low-saturated fat nutrition and cardio consult.`;
+        }
+
+        return {
+          id: `rec_gen_${idx}_${Date.now()}`,
+          patient_id: newPatient?.id || currentPatient.id,
+          text: adviceText,
+          urgency: flag.severity === 'critical' ? 'urgent' : 'follow_up',
+          specialist,
+          created_at: new Date().toISOString(),
+        };
+      });
+      setRecommendations(generatedRecs);
     }
   };
 
@@ -80,23 +140,39 @@ export default function Home() {
     })
     .filter((d): d is { date: string; value: number; unit: string } => d !== null);
 
-  const activeUnit =
-    activeReport.values.find(
-      (v) =>
-        v.test.toLowerCase() === selectedTestForTrend.toLowerCase() ||
-        v.test.toLowerCase().includes(selectedTestForTrend.toLowerCase())
-    )?.unit || '';
+  // If active report has the selected test, include it in the trend data
+  const currentTestInActive = activeReport.values.find(
+    (v) =>
+      v.test.toLowerCase() === selectedTestForTrend.toLowerCase() ||
+      v.test.toLowerCase().includes(selectedTestForTrend.toLowerCase())
+  );
+
+  const mergedTrendData = [...trendData];
+  if (
+    currentTestInActive &&
+    !mergedTrendData.some((t) => t.date === activeReport.uploaded_at)
+  ) {
+    mergedTrendData.push({
+      date: activeReport.uploaded_at,
+      value: currentTestInActive.value,
+      unit: currentTestInActive.unit,
+    });
+  }
+
+  const activeUnit = currentTestInActive?.unit || '';
 
   // Stats calculation
   const totalTests = activeReport.values.length;
   const criticalCount = activeReport.flags.filter((f) => f.severity === 'critical').length;
   const highCount = activeReport.flags.filter((f) => f.status === 'high').length;
+  const lowCount = activeReport.flags.filter((f) => f.status === 'low').length;
   const normalCount = activeReport.flags.filter((f) => f.status === 'normal').length;
 
   return (
     <div className="min-h-screen bg-slate-50/60 flex flex-col text-slate-900">
       <Navbar
         currentPatient={currentPatient}
+        patientsList={patientsList}
         onSelectPatient={handleSelectPatient}
         voiceEnabled={voiceEnabled}
         onToggleVoice={() => setVoiceEnabled(!voiceEnabled)}
@@ -116,10 +192,10 @@ export default function Home() {
                     {currentPatient.name}
                   </h1>
                   <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium">
-                    {currentPatient.age} yrs • {currentPatient.gender === 'M' ? 'Male' : 'Female'}
+                    {currentPatient.age} yrs • {currentPatient.gender === 'M' || currentPatient.gender === 'Male' ? 'Male' : 'Female'}
                   </span>
                   <span className="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-mono">
-                    ID: {currentPatient.id.substring(0, 8)}
+                    ID: {currentPatient.id.substring(0, 10)}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1 flex items-center gap-2">
@@ -144,10 +220,19 @@ export default function Home() {
                 <div className="text-base font-bold text-emerald-800">{normalCount}</div>
               </div>
 
-              <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-center">
-                <div className="text-xs text-amber-700 font-medium">Elevated</div>
-                <div className="text-base font-bold text-amber-800">{highCount}</div>
-              </div>
+              {lowCount > 0 && (
+                <div className="px-3.5 py-2 rounded-xl bg-sky-50 border border-sky-200 text-center">
+                  <div className="text-xs text-sky-700 font-medium">Low</div>
+                  <div className="text-base font-bold text-sky-800">{lowCount}</div>
+                </div>
+              )}
+
+              {highCount > 0 && (
+                <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-center">
+                  <div className="text-xs text-amber-700 font-medium">Elevated</div>
+                  <div className="text-base font-bold text-amber-800">{highCount}</div>
+                </div>
+              )}
 
               {criticalCount > 0 && (
                 <div className="px-3.5 py-2 rounded-xl bg-red-50 border border-red-200 text-center animate-pulse">
@@ -196,7 +281,7 @@ export default function Home() {
             {/* Longitudinal Trend Analysis Chart */}
             <TrendChart
               testName={selectedTestForTrend}
-              data={trendData}
+              data={mergedTrendData}
               unit={activeUnit}
             />
 
@@ -225,7 +310,7 @@ export default function Home() {
           {/* Right Column: Voice-Native Conversational Agent (5 cols) */}
           <div className="lg:col-span-5 sticky top-20">
             <ChatPanel
-              patientId={currentPatient.id}
+              patient={currentPatient}
               activeReport={activeReport}
               voiceEnabled={voiceEnabled}
             />

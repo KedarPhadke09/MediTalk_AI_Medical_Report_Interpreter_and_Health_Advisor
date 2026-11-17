@@ -10,9 +10,9 @@ export const maxDuration = 60;
 
 export async function POST(req: Request) {
   try {
-    const { messages, patientId, reportId } = await req.json();
+    const { messages, patientId, patient: customPatient, reportId, activeReport } = await req.json();
 
-    const selectedPatient = DEMO_PATIENTS.find(p => p.id === patientId) || DEMO_PATIENTS[0];
+    const selectedPatient = customPatient || DEMO_PATIENTS.find(p => p.id === patientId) || DEMO_PATIENTS[0];
 
     const result = streamText({
       model: google('gemini-3.5-flash-lite'),
@@ -21,18 +21,21 @@ Patient Profile:
 - Name: ${selectedPatient.name}
 - Age: ${selectedPatient.age}
 - Gender: ${selectedPatient.gender}
-- Current Active Report ID: ${reportId || 'Latest Available'}
+- Active Report Title: ${activeReport?.type || reportId || 'Latest Available'}
+- Active Report Lab Values: ${JSON.stringify(activeReport?.values || [])}
+- Active Report Evaluated Flags: ${JSON.stringify(activeReport?.flags || [])}
 
 STRICT CLINICAL RULES:
-1. NEVER invent, hallucinate, or assume lab numbers or units. Only use exact data returned by tools.
-2. Always execute 'checkRanges' to deterministically determine normal/low/high/critical status BEFORE explaining any test.
-3. If the patient asks about abnormal values, ALWAYS call 'searchGuideline' and cite the exact source guideline (e.g. ADA Standards of Care 2026, ICMR, WHO).
-4. For longitudinal questions (e.g., "is my diabetes getting worse?", "how did my cholesterol change?"), call 'getHistory' to compare dates and values.
-5. If an abnormal or critical value is identified, call 'createRecommendation' with the appropriate urgency ('info' | 'follow_up' | 'urgent') and specialist (e.g., Endocrinologist, Cardiologist, Nephrologist).
-6. IF ANY VALUE IS CRITICAL (e.g., severe hypoglycemia, acute renal spike), prominently say: "Please consult a doctor or emergency physician urgently."
-7. Respond in the SAME language the patient used (Hindi or English). If the patient speaks Hinglish or Hindi, answer warmly in clear, conversational Hindi or Hinglish.
-8. Keep explanations warm, reassuring, and free of unnecessary medical jargon.
-9. MANDATORY DISCLAIMER: Always state that you are an AI informational health advisor and this is not a formal medical diagnosis.`,
+1. Address the patient respectfully by their exact name (${selectedPatient.name}) and reference their specific report metrics.
+2. NEVER invent, hallucinate, or assume lab numbers or units. Only use exact data from the active report or returned by tools.
+3. Always execute 'checkRanges' to deterministically determine normal/low/high/critical status BEFORE explaining any test.
+4. If the patient asks about abnormal values, ALWAYS call 'searchGuideline' and cite the exact source guideline (e.g. ADA Standards of Care 2026, ICMR, WHO).
+5. For longitudinal questions (e.g., "is my diabetes getting worse?", "how did my cholesterol change?"), call 'getHistory' to compare dates and values.
+6. If an abnormal or critical value is identified, call 'createRecommendation' with the appropriate urgency ('info' | 'follow_up' | 'urgent') and specialist (e.g., Endocrinologist, Cardiologist, Nephrologist).
+7. IF ANY VALUE IS CRITICAL (e.g., severe hypoglycemia, acute renal spike), prominently say: "Please consult a doctor or emergency physician urgently."
+8. Respond in the SAME language the patient used (Hindi or English). If the patient speaks Hinglish or Hindi, answer warmly in clear, conversational Hindi or Hinglish.
+9. Keep explanations warm, reassuring, and free of unnecessary medical jargon.
+10. MANDATORY DISCLAIMER: Always state that you are an AI informational health advisor and this is not a formal medical diagnosis.`,
       messages,
       stopWhen: isStepCount(6),
       tools: {
@@ -42,6 +45,9 @@ STRICT CLINICAL RULES:
             reportId: z.string().describe('The UUID of the report to retrieve'),
           }),
           execute: async ({ reportId: idToFetch }) => {
+            if (activeReport && (activeReport.id === idToFetch || !idToFetch || idToFetch === 'latest')) {
+              return { report: activeReport, source: 'active_session' };
+            }
             try {
               const { data, error } = await supabaseAdmin
                 .from('reports')

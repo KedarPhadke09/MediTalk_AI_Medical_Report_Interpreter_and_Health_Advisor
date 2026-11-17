@@ -7,7 +7,7 @@ import { DEMO_REPORTS } from '@/lib/demoData';
 
 interface UploadZoneProps {
   patientId: string;
-  onReportLoaded: (report: Report) => void;
+  onReportLoaded: (report: Report, patient?: any) => void;
 }
 
 export function UploadZone({ patientId, onReportLoaded }: UploadZoneProps) {
@@ -38,7 +38,7 @@ export function UploadZone({ patientId, onReportLoaded }: UploadZoneProps) {
 
       const newReport: Report = {
         id: data.reportId,
-        patient_id: patientId,
+        patient_id: data.patient?.id || patientId,
         type: data.type,
         file_url: data.fileUrl,
         values: data.values,
@@ -46,7 +46,7 @@ export function UploadZone({ patientId, onReportLoaded }: UploadZoneProps) {
         uploaded_at: new Date().toISOString(),
       };
 
-      onReportLoaded(newReport);
+      onReportLoaded(newReport, data.patient);
     } catch (err: any) {
       console.error('Upload failed:', err);
       setErrorMsg(err.message || 'Error processing document');

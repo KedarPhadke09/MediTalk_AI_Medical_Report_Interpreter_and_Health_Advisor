@@ -19,7 +19,8 @@ interface ChatMessage {
 }
 
 interface ChatPanelProps {
-  patientId: string;
+  patient: any;
+  patientId?: string;
   activeReport: Report | null;
   voiceEnabled: boolean;
 }
@@ -31,7 +32,7 @@ const SUGGESTED_PROMPTS = [
   { label: 'Diet & Lifestyle', text: 'What lifestyle modifications does WHO/ICMR recommend for my results?' },
 ];
 
-export function ChatPanel({ patientId, activeReport, voiceEnabled }: ChatPanelProps) {
+export function ChatPanel({ patient, activeReport, voiceEnabled }: ChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [status, setStatus] = useState<'idle' | 'streaming'>('idle');
@@ -89,8 +90,10 @@ export function ChatPanel({ patientId, activeReport, voiceEnabled }: ChatPanelPr
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
-          patientId,
+          patientId: patient?.id,
+          patient,
           reportId: activeReport?.id || '',
+          activeReport,
         }),
       });
 

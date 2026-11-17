@@ -3,10 +3,10 @@
 import React from 'react';
 import { Activity, ShieldCheck, User, Volume2, VolumeX } from 'lucide-react';
 import { Patient } from '@/lib/supabase';
-import { DEMO_PATIENTS } from '@/lib/demoData';
 
 interface NavbarProps {
   currentPatient: Patient;
+  patientsList?: Patient[];
   onSelectPatient: (patient: Patient) => void;
   voiceEnabled: boolean;
   onToggleVoice: () => void;
@@ -14,10 +14,13 @@ interface NavbarProps {
 
 export function Navbar({
   currentPatient,
+  patientsList = [],
   onSelectPatient,
   voiceEnabled,
   onToggleVoice,
 }: NavbarProps) {
+  const displayList = patientsList.length > 0 ? patientsList : [currentPatient];
+
   return (
     <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -53,12 +56,12 @@ export function Navbar({
             <select
               value={currentPatient.id}
               onChange={(e) => {
-                const found = DEMO_PATIENTS.find((p) => p.id === e.target.value);
+                const found = displayList.find((p) => p.id === e.target.value);
                 if (found) onSelectPatient(found);
               }}
-              className="text-xs font-medium bg-transparent text-slate-800 border-none focus:outline-none focus:ring-0 pr-2 cursor-pointer"
+              className="text-xs font-medium bg-transparent text-slate-800 border-none focus:outline-none focus:ring-0 pr-2 cursor-pointer max-w-[180px] truncate"
             >
-              {DEMO_PATIENTS.map((p) => (
+              {displayList.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} ({p.age}y, {p.gender})
                 </option>
